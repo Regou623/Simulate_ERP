@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>企业ERP系统 - 入库审核</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入 SheetJS 用于导出 Excel -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- 引入 Supabase JS 客户端 -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        /* Custom scrollbar for better look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8; 
+        }
+        
+        /* Toast animation */
+        @keyframes slideIn {
+            from { transform: translateY(-100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes fadeOut {
+            from { opacity: 1; }
+            to { opacity: 0; }
+        }
+        .toast-enter {
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        .toast-exit {
+            animation: fadeOut 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans antialiased flex h-screen overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside class="w-64 bg-gray-900 text-white flex flex-col shadow-lg z-20">
+        <div class="h-16 flex items-center px-6 border-b border-gray-800">
+            <svg class="w-8 h-8 text-blue-500 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 002-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+            <span class="text-xl font-bold tracking-wider">企业ERP系统</span>
+        </div>
+        <nav class="flex-1 py-4 overflow-y-auto">
+            <ul class="space-y-1">
+                <li>
+                    <a href="#" class="flex items-center px-6 py-3 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        首页
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center px-6 py-3 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path></svg>
+                        采购管理
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center px-6 py-3 bg-blue-600 text-white border-l-4 border-blue-400">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path></svg>
+                        入库审核
+                    </a>
+                </li>
+                <li>
+                    <a href="#" class="flex items-center px-6 py-3 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors">
+                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        财务结算
+                    </a>
+                </li>
+            </ul>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="flex-1 flex flex-col h-screen overflow-hidden relative">
+        
+        <!-- Topbar -->
+        <header class="h-16 bg-white shadow-sm flex items-center justify-between px-6 z-10">
+            <div class="flex items-center text-sm text-gray-500">
+                <a href="#" class="hover:text-blue-600">采购管理</a>
+                <span class="mx-2">/</span>
+                <span class="text-gray-900 font-medium">入库审核</span>
+            </div>
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-2">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">
+                        A
+                    </div>
+                    <span class="text-sm font-medium text-gray-700">Admin</span>
+                </div>
+                <button class="text-sm text-gray-500 hover:text-red-600 transition-colors flex items-center">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path></svg>
+                    退出登录
+                </button>
+            </div>
+        </header>
+
+        <!-- Content Area -->
+        <main class="flex-1 overflow-y-auto p-6 bg-gray-50">
+            <div class="bg-white rounded-lg shadow-sm border border-gray-200">
+                <div class="px-6 py-4 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <h2 class="text-lg font-semibold text-gray-800">本月待审核入库单 (2026-04)</h2>
+                    <div class="flex items-center space-x-2">
+                        <input type="text" id="search-supplier-input" placeholder="输入供应商名称" class="block w-48 sm:text-sm border-gray-300 rounded-md border px-3 py-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors">
+                        <button id="search-btn" class="px-4 py-2 bg-blue-600 text-white rounded-md text-sm font-medium hover:bg-blue-700 transition-colors">搜索</button>
+                        <button id="reset-btn" class="px-4 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-md text-sm font-medium hover:bg-gray-200 transition-colors">重置</button>
+                        <button id="export-btn" class="px-4 py-2 bg-white border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            导出报表
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table id="audit-table" class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">序号</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">供应商名称</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">采购订单号</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">实际入库金额(元)</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">入库日期</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">审核状态</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">审核意见</th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">操作</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="table-body">
+                            <!-- Rows will be generated by JS -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+                    <div class="text-sm text-gray-500" id="pagination-info">
+                        显示第 <span class="font-medium">0</span> 到 <span class="font-medium">0</span> 条结果，共 <span class="font-medium">0</span> 条
+                    </div>
+                    <div class="flex space-x-2" id="pagination-controls">
+                        <!-- Buttons will be generated by JS -->
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Toast Container -->
+        <div id="toast-container" class="fixed top-10 left-1/2 transform -translate-x-1/2 z-[9999] flex flex-col gap-2 items-center"></div>
+    </div>
+
+    <script>
+        // ==========================================
+        // Supabase 配置 (请替换为你自己的 URL 和 Key)
+        // ==========================================
+        const SUPABASE_URL = 'https://vjxhhkgkbjjcouepagbg.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_dcS1I_ySqj-QepoJBqONow_2F0Ax9G_';
+        
+        // 使用 window 对象挂载，避免重复声明报错
+        if (!window.supabaseClient) {
+            window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        }
+        const supabaseClient = window.supabaseClient;
+
+        const tbody = document.getElementById('table-body');
+
+        // 分页状态
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        const pageSize = 10;
+
+        // 渲染表格函数
+        function renderPage() {
+            tbody.innerHTML = ''; // 清空加载提示
+            
+            if (!filteredData || filteredData.length === 0) {
+                document.getElementById('pagination-info').innerHTML = `显示第 <span class="font-medium">0</span> 到 <span class="font-medium">0</span> 条结果，共 <span class="font-medium">0</span> 条`;
+                document.getElementById('pagination-controls').innerHTML = '';
+                tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-12 text-center text-sm text-gray-500"><div class="flex flex-col items-center"><svg class="w-12 h-12 text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg><p class="text-lg font-medium text-gray-900">暂无数据</p><p class="mt-1 text-gray-500">没有找到匹配的记录</p></div></td></tr>';
+                return;
+            }
+            
+            const totalPages = Math.ceil(filteredData.length / pageSize);
+            if (currentPage < 1) currentPage = 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+
+            const startIndex = (currentPage - 1) * pageSize;
+            const endIndex = Math.min(startIndex + pageSize, filteredData.length);
+            const pageData = filteredData.slice(startIndex, endIndex);
+            
+            document.getElementById('pagination-info').innerHTML = `显示第 <span class="font-medium">${startIndex + 1}</span> 到 <span class="font-medium">${endIndex}</span> 条结果，共 <span class="font-medium">${filteredData.length}</span> 条`;
+            
+            pageData.forEach((item) => {
+                const tr = document.createElement('tr');
+                tr.className = 'data-row hover:bg-gray-50 transition-colors';
+                
+                // 根据状态判断是否已审核
+                const isAudited = item.status === '已通过';
+                const isRejected = item.status === '已驳回';
+                const isPending = !isAudited && !isRejected;
+                
+                let statusHtml = '';
+                if (isAudited) statusHtml = `<span class="status-badge px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">已通过</span>`;
+                else if (isRejected) statusHtml = `<span class="status-badge px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">已驳回</span>`;
+                else statusHtml = `<span class="status-badge px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">待审核</span>`;
+                
+                const inputHtml = isPending
+                    ? `<input type="text" class="audit-input block w-full sm:text-sm border-gray-300 rounded-md border px-3 py-1.5 focus:ring-blue-500 focus:border-blue-500 outline-none transition-colors" placeholder="请输入审核意见" value="${item.comment || ''}">`
+                    : `<input type="text" class="audit-input block w-full sm:text-sm border-gray-200 bg-gray-100 text-gray-500 rounded-md border px-3 py-1.5 cursor-not-allowed" value="${item.comment || ''}" disabled>`;
+                
+                let btnHtml = '';
+                if (isAudited) {
+                    btnHtml = `<button class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-[#6c757d] cursor-not-allowed" disabled>已审核</button>`;
+                } else if (isRejected) {
+                    btnHtml = `<button class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-[#6c757d] cursor-not-allowed" disabled>已驳回</button>`;
+                } else {
+                    btnHtml = `
+                        <div class="flex space-x-2 justify-center">
+                            <button class="audit-btn inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors" data-po="${item.po}">通过</button>
+                            <button class="reject-btn inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors" data-po="${item.po}">驳回</button>
+                        </div>
+                    `;
+                }
+
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.id}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${item.supplier}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-mono">${item.po}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right pr-6">¥ ${item.amount}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${statusHtml}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${inputHtml}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">${btnHtml}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+            
+            renderPaginationControls(totalPages);
+        }
+
+        function renderPaginationControls(totalPages) {
+            const controls = document.getElementById('pagination-controls');
+            let html = '';
+
+            const prevDisabled = currentPage === 1 ? 'disabled' : '';
+            const prevOpacity = currentPage === 1 ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50';
+            html += `<button onclick="changePage(${currentPage - 1})" class="px-3 py-1 border border-gray-300 rounded-md text-sm ${prevOpacity}" ${prevDisabled}>上一页</button>`;
+
+            // 简单分页逻辑：显示所有页码
+            for (let i = 1; i <= totalPages; i++) {
+                if (i === currentPage) {
+                    html += `<button class="px-3 py-1 border border-gray-300 rounded-md text-sm bg-blue-50 text-blue-600 border-blue-200">${i}</button>`;
+                } else {
+                    html += `<button onclick="changePage(${i})" class="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50">${i}</button>`;
+                }
+            }
+
+            const nextDisabled = currentPage === totalPages ? 'disabled' : '';
+            const nextOpacity = currentPage === totalPages ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50';
+            html += `<button onclick="changePage(${currentPage + 1})" class="px-3 py-1 border border-gray-300 rounded-md text-sm ${nextOpacity}" ${nextDisabled}>下一页</button>`;
+
+            controls.innerHTML = html;
+        }
+
+        window.changePage = function(page) {
+            currentPage = page;
+            renderPage();
+        };
+
+        // 从 Supabase 加载数据
+        async function loadData() {
+            if (SUPABASE_URL === 'YOUR_SUPABASE_URL' || !SUPABASE_URL) {
+                tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-sm text-red-500 font-medium">请先在代码中配置 Supabase URL 和 Anon Key</td></tr>';
+                return;
+            }
+            
+            tbody.innerHTML = '<tr><td colspan="8" class="px-6 py-8 text-center text-sm text-gray-500">数据加载中...</td></tr>';
+            
+            const { data, error } = await supabaseClient
+                .from('inventory_audits')
+                .select('*')
+                .order('id', { ascending: true });
+                
+            if (error) {
+                console.error('Error fetching data:', error);
+                tbody.innerHTML = `<tr><td colspan="8" class="px-6 py-8 text-center text-sm text-red-500">加载失败: ${error.message}</td></tr>`;
+                return;
+            }
+            
+            allData = data;
+            filteredData = [...allData];
+            currentPage = 1;
+            renderPage();
+        }
+
+        // 初始化加载
+        loadData();
+
+        // Toast Notification Function
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            
+            const bgClass = type === 'error' ? 'bg-red-50' : 'bg-green-50';
+            const borderClass = type === 'error' ? 'border-red-400' : 'border-green-400';
+            const textClass = type === 'error' ? 'text-red-700' : 'text-green-700';
+            const iconClass = type === 'error' ? 'text-red-400' : 'text-green-400';
+            
+            const iconSvg = type === 'error' 
+                ? `<svg class="h-5 w-5 ${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>`
+                : `<svg class="h-5 w-5 ${iconClass}" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>`;
+
+            toast.className = `toast-enter ${bgClass} border-l-4 ${borderClass} p-4 rounded shadow-md flex items-center min-w-[300px]`;
+            toast.innerHTML = `
+                <div class="flex-shrink-0">
+                    ${iconSvg}
+                </div>
+                <div class="ml-3">
+                    <p class="text-sm ${textClass} font-medium">
+                        ${message}
+                    </p>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.classList.remove('toast-enter');
+                toast.classList.add('toast-exit');
+                setTimeout(() => {
+                    if (container.contains(toast)) {
+                        container.removeChild(toast); // 彻底从 DOM 树中销毁
+                    }
+                }, 300); // Wait for exit animation
+            }, 3000);
+        }
+
+        // Event Delegation for Audit Buttons
+        document.getElementById('audit-table').addEventListener('click', function(e) {
+            const auditBtn = e.target.closest('.audit-btn');
+            const rejectBtn = e.target.closest('.reject-btn');
+            
+            if (!auditBtn && !rejectBtn) return;
+            e.preventDefault(); // Intercept default action
+
+            const btn = auditBtn || rejectBtn;
+            if (btn.disabled) return;
+
+            const isReject = !!rejectBtn;
+            const row = btn.closest('.data-row');
+            const poNumber = btn.getAttribute('data-po') || btn.querySelector('[data-po]')?.getAttribute('data-po');
+            const input = row.querySelector('.audit-input');
+            const statusBadge = row.querySelector('.status-badge');
+            const commentValue = input.value.trim();
+
+            if (isReject && !commentValue) {
+                showToast('请填写驳回原因！', 'error');
+                input.focus();
+                input.classList.add('border-red-500', 'ring-1', 'ring-red-500');
+                setTimeout(() => input.classList.remove('border-red-500', 'ring-1', 'ring-red-500'), 2000);
+                return;
+            }
+
+            // 1. UI 更新 (仅前端修改)
+            const newStatus = isReject ? '已驳回' : '已通过';
+            const badgeClass = isReject 
+                ? 'status-badge px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800'
+                : 'status-badge px-2.5 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800';
+            
+            statusBadge.textContent = newStatus;
+            statusBadge.className = badgeClass;
+
+            input.disabled = true;
+            input.className = 'audit-input block w-full sm:text-sm border-gray-200 bg-gray-100 text-gray-500 rounded-md border px-3 py-1.5 cursor-not-allowed';
+
+            const btnContainer = btn.closest('.flex.space-x-2.justify-center');
+            if (btnContainer) {
+                btnContainer.outerHTML = `<button class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded shadow-sm text-white bg-[#6c757d] cursor-not-allowed" disabled>${isReject ? '已驳回' : '已审核'}</button>`;
+            }
+
+            // 2. 更新本地数据缓存 (用于导出和翻页保持状态)
+            const dataIndex = allData.findIndex(item => item.po === poNumber);
+            if (dataIndex !== -1) {
+                allData[dataIndex].status = newStatus;
+                allData[dataIndex].comment = commentValue;
+            }
+            
+            const filteredIndex = filteredData.findIndex(item => item.po === poNumber);
+            if (filteredIndex !== -1) {
+                filteredData[filteredIndex].status = newStatus;
+                filteredData[filteredIndex].comment = commentValue;
+            }
+
+            // Show Toast
+            showToast(`${isReject ? '驳回' : '审核'}成功：已处理 ${poNumber} 的入库单 (仅本地修改)`, 'success');
+        });
+
+        // Export to Excel Logic
+        document.getElementById('export-btn').addEventListener('click', function() {
+            const data = [];
+            
+            // 添加表头
+            data.push(['序号', '供应商名称', '采购订单号', '实际入库金额(元)', '入库日期', '审核状态', '审核意见']);
+
+            // 遍历所有数据（支持导出全部数据，而不仅仅是当前页）
+            filteredData.forEach(item => {
+                let currentComment = item.comment || '';
+                // 如果当前行在页面上，尝试获取输入框里的最新未保存值
+                const activeRowBtn = document.querySelector(`.audit-btn[data-po="${item.po}"]`);
+                if (activeRowBtn) {
+                    const row = activeRowBtn.closest('tr');
+                    const input = row.querySelector('.audit-input');
+                    if (input) {
+                        currentComment = input.value.trim();
+                    }
+                }
+                
+                data.push([
+                    item.id, 
+                    item.supplier, 
+                    item.po, 
+                    item.amount, 
+                    item.date, 
+                    item.status, 
+                    currentComment
+                ]);
+            });
+
+            // 创建工作表和工作簿
+            const ws = XLSX.utils.aoa_to_sheet(data);
+            
+            // 设置列宽以便在 Excel 中更好看
+            ws['!cols'] = [
+                { wch: 8 },  // 序号
+                { wch: 20 }, // 供应商名称
+                { wch: 18 }, // 采购订单号
+                { wch: 15 }, // 实际入库金额
+                { wch: 12 }, // 入库日期
+                { wch: 10 }, // 审核状态
+                { wch: 30 }  // 审核意见
+            ];
+
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "入库审核数据");
+
+            // 生成文件名并触发下载
+            const today = new Date().toISOString().slice(0, 10);
+            XLSX.writeFile(wb, `入库审核报表_${today}.xlsx`);
+            
+            showToast('报表导出成功！');
+        });
+
+        // Search Logic
+        document.getElementById('search-btn').addEventListener('click', function() {
+            const keyword = document.getElementById('search-supplier-input').value.trim().toLowerCase();
+            if (keyword) {
+                filteredData = allData.filter(item => item.supplier.toLowerCase().includes(keyword));
+            } else {
+                filteredData = [...allData];
+            }
+            currentPage = 1;
+            renderPage();
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', function() {
+            document.getElementById('search-supplier-input').value = '';
+            filteredData = [...allData];
+            currentPage = 1;
+            renderPage();
+        });
+    </script>
+</body>
+</html>
